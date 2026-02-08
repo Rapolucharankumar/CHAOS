@@ -1,0 +1,9 @@
+{
+  "name": "chaos-cat",
+  "version": "1.0.0",
+  "description": "Chaos Cat MVP with Gemini AI",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  }
+}

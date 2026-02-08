@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chaos Cat — MVP</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+:root{
+  --bg-calm:#0ea5e9;
+  --bg-curious:#6366f1;
+  --bg-stressed:#f97316;
+}
+
+body{
+  margin:0;
+  height:100vh;
+  font-family:system-ui;
+  background:linear-gradient(120deg,var(--bg-calm),#020617);
+  transition:background 1s ease;
+  overflow:hidden;
+}
+
+/* UI CARD */
+#ui{
+  position:absolute;
+  top:16px;
+  left:50%;
+  transform:translateX(-50%);
+  width:320px;
+  background:rgba(255,255,255,.12);
+  backdrop-filter:blur(14px);
+  padding:16px;
+  border-radius:18px;
+  color:white;
+}
+
+.stat{font-size:13px;margin-top:6px}
+.bar{
+  height:8px;
+  background:rgba(255,255,255,.2);
+  border-radius:999px;
+  overflow:hidden;
+}
+.bar div{
+  height:100%;
+  background:white;
+  transition:.3s;
+}
+
+.choice{
+  margin-top:8px;
+  padding:10px;
+  border-radius:12px;
+  background:rgba(0,0,0,.25);
+  cursor:pointer;
+}
+
+/* CAT */
+#cat{
+  position:absolute;
+  bottom:40px;
+  left:50%;
+  transform:translateX(-50%);
+  width:160px;
+  height:160px;
+  background:#facc15;
+  border-radius:50%;
+  animation:breathe 4s ease-in-out infinite;
+  box-shadow:0 20px 60px rgba(0,0,0,.2);
+  cursor:pointer;
+  transition:transform .2s;
+}
+
+#cat:active{
+  transform:translateX(-50%) scale(0.95);
+}
+
+/* ears */
+#cat::before,#cat::after{
+  content:"";
+  position:absolute;
+  top:-20px;
+  width:36px;
+  height:48px;
+  background:#facc15;
+  border-radius:50%;
+  transition:transform .3s;
+}
+#cat::before{left:20px;transform:rotate(-20deg)}
+#cat::after{right:20px;transform:rotate(20deg)}
+
+#cat.listening::before{transform:rotate(-35deg)}
+#cat.listening::after{transform:rotate(35deg)}
+
+/* eyes */
+.eye{
+  position:absolute;
+  top:60px;
+  width:14px;
+  height:14px;
+  background:#020617;
+  border-radius:50%;
+}
+.eye.left{left:45px}
+.eye.right{right:45px}
+
+/* mouth */
+#mouth{
+  position:absolute;
+  bottom:50px;
+  left:50%;
+  transform:translateX(-50%);
+  width:30px;
+  height:6px;
+  border-bottom:4px solid #020617;
+  border-radius:0 0 20px 20px;
+  transition:.1s;
+}
+
+.talking #mouth{
+  height:22px;
+  border:4px solid #020617;
+  border-radius:50%;
+  animation:chat .2s infinite alternate;
+}
+
+@keyframes chat{
+  0%{height:20px}
+  100%{height:28px}
+}
+
+@keyframes breathe{
+  0%,100%{transform:translateX(-50%) scale(1)}
+  50%{transform:translateX(-50%) scale(1.03)}
+}
+
+#say{
+  width:100%;
+  margin-top:10px;
+  padding:10px;
+  border-radius:12px;
+  border:none;
+}
+</style>
+</head>
+
+<body>
+
+<div id="ui">
+  <b>Chaos Engine</b>
+
+  <div class="stat">Focus <span id="f"></span></div>
+  <div class="bar"><div id="fb"></div></div>
+
+  <div class="stat">Stress <span id="s"></span></div>
+  <div class="bar"><div id="sb"></div></div>
+
+  <div class="stat">Energy <span id="e"></span></div>
+  <div class="bar"><div id="eb"></div></div>
+
+  <div class="stat">Overthink <span id="o"></span></div>
+  <div class="bar"><div id="ob"></div></div>
+
+  <div id="log"></div>
+  <div id="choices"></div>
+
+  <input id="say" placeholder="Talk to the cat…" />
+</div>
+
+<!-- CAT -->
+<div id="cat">
+  <div class="eye left"></div>
+  <div class="eye right"></div>
+  <div id="mouth"></div>
+</div>
+
+<script>
+/* ---------- CHAOS ---------- */
+let chaos = JSON.parse(localStorage.getItem("chaos")) || {
+  focus:60, stress:30, energy:70, overthink:40
+};
+
+const q=id=>document.getElementById(id);
+function clamp(){
+  Object.keys(chaos).forEach(k=>{
+    chaos[k]=Math.max(0,Math.min(100,chaos[k]));
+  });
+}
+function render(){
+  q("f").textContent=chaos.focus;
+  q("s").textContent=chaos.stress;
+  q("e").textContent=chaos.energy;
+  q("o").textContent=chaos.overthink;
+
+  q("fb").style.width=chaos.focus+"%";
+  q("sb").style.width=chaos.stress+"%";
+  q("eb").style.width=chaos.energy+"%";
+  q("ob").style.width=chaos.overthink+"%";
+
+  localStorage.setItem("chaos",JSON.stringify(chaos));
+  updateMood();
+}
+render();
+
+/* ---------- EVENTS ---------- */
+const events=[
+  {t:"Thoughts loop.",o:[
+    {l:"Stay",e:{overthink:+8,stress:+5}},
+    {l:"Release",e:{overthink:-6,stress:-4}}
+  ]},
+  {t:"Energy dips.",o:[
+    {l:"Rest",e:{energy:+10,stress:-6}},
+    {l:"Push",e:{energy:-8,focus:+6}}
+  ]}
+];
+function nextEvent(){
+  const ev=events[Math.random()*events.length|0];
+  q("log").textContent=ev.t;
+  q("choices").innerHTML="";
+  ev.o.forEach(opt=>{
+    const d=document.createElement("div");
+    d.className="choice";
+    d.textContent=opt.l;
+    d.onclick=()=>{
+      Object.keys(opt.e).forEach(k=>chaos[k]+=opt.e[k]);
+      clamp();render();nextEvent();
+    };
+    q("choices").appendChild(d);
+  });
+}
+nextEvent();
+
+/* ---------- CAT MOOD ---------- */
+function getMood(){
+  if(chaos.stress>70) return "stressed";
+  if(chaos.overthink>60) return "curious";
+  return "calm";
+}
+function updateMood(){
+  const mood=getMood();
+  document.body.style.background =
+    mood==="calm"
+      ?"linear-gradient(120deg,var(--bg-calm),#020617)"
+      :mood==="curious"
+      ?"linear-gradient(120deg,var(--bg-curious),#020617)"
+      :"linear-gradient(120deg,var(--bg-stressed),#020617)";
+}
+
+/* ---------- TALK ---------- */
+function speak(text){
+  const cat=q("cat");
+  cat.classList.add("talking");
+
+  const u=new SpeechSynthesisUtterance(text);
+  u.pitch=1.4;
+  u.rate=1.05;
+  u.onend=()=>cat.classList.remove("talking");
+  speechSynthesis.speak(u);
+}
+
+/* ---------- AI ---------- */
+async function askCat(text){
+  if(!text.trim()){
+    return;
+  }
+
+  const mood=getMood();
+  const cat=q("cat");
+  cat.classList.add("listening");
+
+  try{
+    const r=await fetch("/api/chat",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({message:text,chaos,mood})
+    });
+    
+    if(!r.ok) throw new Error("API error");
+    
+    const data=await r.json();
+    if(data.reply){
+      speak(data.reply);
+    } else {
+      speak("Meow?");
+    }
+  }catch(err){
+    console.error("Chat error:",err);
+    speak("Meow meow!");
+  }finally{
+    cat.classList.remove("listening");
+  }
+}
+
+q("say").addEventListener("keydown",e=>{
+  if(e.key==="Enter"){
+    const val=e.target.value.trim();
+    if(val){
+      askCat(val);
+      e.target.value="";
+    }
+  }
+});
+
+q("cat").addEventListener("click",()=>{
+  if(!q("say").value){
+    q("say").focus();
+  }
+});
+</script>
+
+</body>
+</html>
